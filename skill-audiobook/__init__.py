@@ -24,6 +24,10 @@ from mycroft.skills.common_play_skill import CommonPlaySkill, CPSMatchLevel
 import traceback
 from requests import Session
 
+import urllib, json
+import requests
+from urllib.request import urlopen
+
 
 # Each skill is contained within its own class, which inherits base methods
 # from the MycroftSkill class.  You extend this class as shown below.
@@ -49,10 +53,28 @@ class AudiobookSkill(MycroftSkill):
         # Get audiobook title from utterance
         utterance = message.data.get('utterance')
         repeat = re.sub('^.*?' + message.data['Audiobook'], '', utterance)
+        user_utterance = ""
+        for x in repeat.split():
+            user_utterance += x + " "
         book_title = {'title': repeat}
-        # Read title if audiobook is found
-        #self.speak_dialog("loading.audiobook", data=book_title)
-        self.speak(repeat.split()[0])
+        self.speak("Now searching for audiobook " + user_utterance)
+        # Gets the JSON from the Librivox API
+        # Code taken from https://www.powercms.in/blog/how-get-json-data-remote-url-python-script
+        url = "https://librivox.org/api/feed/audiobooks/?title=" + user_utterance + "&format=json"
+        headers = {'content-type': 'application/json; charset=utf-8'}
+        # Convert the JSON to dict
+        raw_data = requests.get(url=url)
+        json_data = raw_data.json()
+        try:
+            self.speak(json_data["books"][0]["description"])
+            self.speak("Downloading the audiobook, I will be back with the files in a moment.")
+            if os.path.isdir(os.getcwd() + "/audiobook-tmp") == False:
+                os.mkdir('audiobook-tmp')
+            file_url = json_data["books"][0]["url_zip_file"]
+            urllib.request.urlretrieve(file_url, os.getcwd() + "/audiobook-tmp/" + json_data["books"][0]["id"] + ".zip") 
+            self.speak("Download complete. Loading the audiobook.")
+        except:
+            self.speak("Please provide exact title.")
         
 
     # The "stop" method defines what Mycroft does when told to stop during
